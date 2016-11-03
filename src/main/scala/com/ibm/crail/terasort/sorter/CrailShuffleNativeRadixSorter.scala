@@ -24,7 +24,7 @@ package com.ibm.crail.terasort.sorter
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicLong
 
-import com.ibm.crail.terasort.{TeraSort, TeraInputFormat}
+import com.ibm.crail.terasort.{BufferCache, TeraSort, TeraInputFormat}
 import com.ibm.radixsort.NativeRadixSort
 import org.apache.spark.TaskContext
 import org.apache.spark.serializer.Serializer
@@ -55,7 +55,7 @@ private case class OrderedByteBuffer(buf: ByteBuffer) extends Ordered[OrderedByt
 
 private class OrderedByteBufferCache(size: Int) {
 
- private val cacheBufferList = ListBuffer[OrderedByteBuffer]()
+  private val cacheBufferList = ListBuffer[OrderedByteBuffer]()
   private val get = new AtomicLong(0)
   private val put = new AtomicLong(0)
   private val miss = new AtomicLong(0)
@@ -140,7 +140,8 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
 
     require(totalBytesRead % TeraInputFormat.RECORD_LEN == 0 ,
       " totalBytesRead " + totalBytesRead + " is not a multiple of the record length " + TeraInputFormat.RECORD_LEN)
-    new ByteBufferIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
+    //new ByteBufferIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
+    new ByteBufferBigIterator(bufferList, verbose).asInstanceOf[Iterator[Product2[K, C]]]
   }
 }
 
@@ -198,5 +199,38 @@ private class ByteBufferIterator(bufferList: ListBuffer[OrderedByteBuffer], tota
       }
     }
     kv
+  }
+}
+
+private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], verbose: Boolean)
+  extends Iterator[Product2[Array[Byte], Array[Byte]]] {
+
+  require(bufferList.length == 1, " BUG(): BigIterator only works with single buffer, currently " +
+    bufferList.length + " buffers")
+  var done = false
+  val keyBuffer = ByteBuffer.allocate(4).putInt(bufferList.head.buf.remaining()) //size of int
+
+  private val cacheBuffer = BufferCache.getInstance().getByteArrayBuffer(bufferList.head.buf.remaining())
+  private val value = cacheBuffer.getByteArray
+  System.err.println("Caching a buffer of : " + bufferList.head.buf.remaining())
+  bufferList.head.buf.get(value, 0, bufferList.head.buf.remaining())
+  private val key = keyBuffer.array()
+  private var bufferReturned = false
+
+  override def hasNext: Boolean = {
+    if(done && !bufferReturned) {
+      val ins = OrderedByteBufferCache.getInstance()
+      ins.putBuffer(bufferList.head)
+      if(verbose) {
+        System.err.println(ins.getStatistics)
+      }
+      bufferReturned = true
+    }
+    !done
+  }
+
+  override def next(): Product2[Array[Byte], Array[Byte]] = {
+    done = true
+    (key, value)
   }
 }

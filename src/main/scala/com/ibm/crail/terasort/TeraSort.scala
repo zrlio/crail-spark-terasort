@@ -143,7 +143,7 @@ object TeraSort {
         if(options.isTestLoadCountStore || options.isTestLoadSortStore) {
           /* store */
           exe += " storing the file at: " + outputFile
-          outrdd.saveAsNewAPIHadoopFile[TeraOutputFormat](outputFile)
+          outrdd.saveAsNewAPIHadoopFile[TeraOutputBigFormat](outputFile)
         } else {
           /* just count */
           if(options.isTestLoadSort)
