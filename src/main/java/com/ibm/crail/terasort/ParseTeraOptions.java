@@ -98,7 +98,7 @@ public class ParseTeraOptions {
                 "byte: a simple byte[] serializer \n" +
                 "f22: an optimized crail-specific byte[] serializer\n" +
                 "     f22 requires CrailShuffleNativeRadixSorter for sorting\n");
-        options.addOption("O", "options", true, "string,string : Sets properties on the Spark context. The first \n" +
+        options.addOption("P", "properties", true, "string,string : Sets properties on the Spark context. The first \n" +
                 "string is the key, and the second is the value");
         options.addOption("b", "kryoBufferSize", true, "<int> Buffer size for Kryo (default: " + kryoBufferSize + ")");
         options.addOption("B", "f22BufferSize", true, "<int> Buffer size for F22 (default: " + f22BufferSize + ")");
@@ -308,10 +308,10 @@ public class ParseTeraOptions {
                 else
                     syncOutput = true;
             }
-            if(cmd.hasOption("O")) {
-                String[] vals = cmd.getOptionValue("O").split(",");
+            if(cmd.hasOption("P")) {
+                String[] vals = cmd.getOptionValue("P").split(",");
                 if(vals.length !=2) {
-                    System.err.println("Failed to parse " + cmd.getOptionValue("O"));
+                    System.err.println("Failed to parse " + cmd.getOptionValue("P"));
                     System.exit(-1);
                 }
                 /* otherwise we got stuff */
