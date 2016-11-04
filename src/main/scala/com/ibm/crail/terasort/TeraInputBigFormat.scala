@@ -41,6 +41,7 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
     private val inputBufferSize = TaskContext.get().getLocalProperty(TeraSort.inputBufferSizeKey).toInt
     private var inputBufferIndex = 0
     private var readFromHdfs = 0
+    private var counted = 0L
 
     private val verbose = TaskContext.get().getLocalProperty(TeraSort.verboseKey).toBoolean
 
@@ -51,9 +52,16 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       var newRead : Int = -1
       val target = Math.min(totalIncomingBytes - processedSoFar, inputBufferSize).toInt
 
+      if(verbose) {
+        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+          " attempting to refill the buffer with " + target + " bytes")
+      }
       while (read < target) {
         newRead = in.read(inputBuffer, read, target - read)
         if(newRead == -1) {
+          System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+            " WE HIT HERE !!! !")
+
           throw new EOFException("read past eof")
         }
         // otherwise we add to what we have read
@@ -67,16 +75,20 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
         System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
           " HDFS read bytes: " + target +
           " time : " + timeUs + " usec , or " +
-          (target.asInstanceOf[Long] * 8) / timeUs + " Mbps")
+          (target.asInstanceOf[Long] * 8) / timeUs + " Mbps ")
       }
       readFromHdfs+=1
     }
 
     override final def nextKeyValue() : Boolean = {
       if (processedSoFar >= totalIncomingBytes) {
+        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+          " ########### this is finished ? " + processedSoFar + " incoming " + totalIncomingBytes)
         return false
       }
       if(inputBufferIndex == inputBuffer.length) {
+        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+          " !!!!!!!!! refillingg buffer ")
         /* time to refill */
         refillInputBuffer()
       }
@@ -131,7 +143,7 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       in.close()
       if(verbose){
         System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
-          " finished, processed " + totalIncomingBytes + " bytes, with " +readFromHdfs + " times to HDFS, "
+          " finished, processed " + processedSoFar + " bytes, with " +readFromHdfs + " times to HDFS, "
           + BufferCache.getInstance.getCacheStatus)
       }
     }
