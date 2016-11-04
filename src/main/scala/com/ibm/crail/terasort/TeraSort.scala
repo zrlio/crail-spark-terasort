@@ -37,6 +37,7 @@ object TeraSort {
   val verboseKey = "spark.terasort.verbose"
   val inputBufferSizeKey = "spark.terasort.inputbuffersize"
   val outputBufferSizeKey = "spark.terasort.outputbuffersize"
+  val useBigIteratorKey = "spark.terasort.usebigiterator"
 
   val verbosePrefixF22 = "F22 | "
   val verbosePrefixSorter = "Sorter | "
@@ -95,6 +96,7 @@ object TeraSort {
     sc.setLocalProperty(verboseKey, options.getVerbose.toString)
     sc.setLocalProperty(inputBufferSizeKey, options.getInputBufferSize.toString)
     sc.setLocalProperty(outputBufferSizeKey, options.getOutputXBufferSize.toString)
+    sc.setLocalProperty(useBigIteratorKey, options.useBigIterator().toString)
 
     if(options.getWarmUpKeys > 0) {
       doWarmup(sc, options)
@@ -154,7 +156,11 @@ object TeraSort {
         if(options.isTestLoadCountStore || options.isTestLoadSortStore) {
           /* store */
           exe += " storing the file at: " + outputFile
-          outrdd.saveAsNewAPIHadoopFile[TeraOutputBigFormat](outputFile)
+          if(options.useBigIterator()) {
+            outrdd.saveAsNewAPIHadoopFile[TeraOutputBigFormat](outputFile)
+          } else {
+            outrdd.saveAsNewAPIHadoopFile[TeraOutputFormat](outputFile)
+          }
         } else {
           /* just count */
           if(options.isTestLoadSort)
@@ -206,7 +212,7 @@ object TeraSort {
       override def hashCode: Int = numPartitions
     }
 
-    val outputFile = "/terasort-output-warmup"
+    val outputFile = "/terasort-output-warmup-"+options.getWarmUpKeys+"-keys"
     val cores = if(scin.getConf.contains("spark.executor.cores")) scin.getConf.get("spark.executor.cores").toInt else 1
     val exes = if(scin.getConf.contains("spark.executor.instances")) scin.getConf.get("spark.executor.instances").toInt else 2
 
@@ -240,6 +246,10 @@ object TeraSort {
       shuffle.setSerializer(new F22Serializer())
     }
     val out = new PairRDDFunctions(shuffle)
-    out.saveAsNewAPIHadoopFile[TeraOutputFormat](outputFile)
+    if(options.useBigIterator()) {
+      out.saveAsNewAPIHadoopFile[TeraOutputBigFormat](outputFile)
+    } else {
+      out.saveAsNewAPIHadoopFile[TeraOutputFormat](outputFile)
+    }
   }
 }

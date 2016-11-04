@@ -112,6 +112,7 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
     val bufferList = ListBuffer[OrderedByteBuffer]()
     var totalBytesRead = 0
     val expectedRead = TaskContext.get().getLocalProperty(TeraSort.f22BufSizeKey).toInt
+    val useBigIterator = TaskContext.get().getLocalProperty(TeraSort.useBigIteratorKey).toBoolean
     var bytesRead = expectedRead // to start the loop
     while(bytesRead == expectedRead) {
       /* this needs to be a multiple of KV size otherwise we will break the record boundary */
@@ -142,8 +143,11 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
 
     require(totalBytesRead % TeraInputFormat.RECORD_LEN == 0 ,
       " totalBytesRead " + totalBytesRead + " is not a multiple of the record length " + TeraInputFormat.RECORD_LEN)
-    //new ByteBufferIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
-    new ByteBufferBigIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
+    if(useBigIterator) {
+      new ByteBufferBigIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
+    } else {
+      new ByteBufferIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
+    }
   }
 }
 
