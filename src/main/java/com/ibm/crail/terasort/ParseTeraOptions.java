@@ -44,6 +44,9 @@ public class ParseTeraOptions {
     private long warmUpKeys;
     private String banner;
     private boolean verbose;
+    private int inputBufferSize;
+    private int outputXBufferSize;
+    private boolean useBigIterator;
 
     ParseTeraOptions(){
         banner = " _____              _____            _   \n" +
@@ -64,7 +67,12 @@ public class ParseTeraOptions {
 
         inputDir = null;
         outputDir= null;
-        f22BufferSize = 104857600;
+        // 100 MB buffers need to be a multiple of the record size i.e. 100 bytes
+        f22BufferSize = 104857600; // 100 MB
+        inputBufferSize = 104857600;  // 100 MB
+        outputXBufferSize = 104857600;  // 100 MB
+        useBigIterator = false; // we dont do by default the iterator hack
+
         kryoBufferSize = 1048576;
         warmUpKeys = 0; /* zero means no warm up */
 
@@ -106,20 +114,26 @@ public class ParseTeraOptions {
                 "), zero means no warmup");
         options.addOption("v", "verbose", false, "Print verbose information and performance numbers (default "+
                 verbose + ")");
+        options.addOption("I", "inputBufferSize", true, "<int> Buffer size for input buffering from HDFS (default: " +
+                inputBufferSize + ")");
+        options.addOption("X", "outputXBufferSize", true, "<int> Buffer size for iterating buffering when writing out to HDFS. " +
+                "(default: " + outputXBufferSize+ "). NOTE: OutputXBufferSize is only valid when writing out to HDFS, not for " +
+                "counting, and currently is a hack!.");
     }
 
     public String showOptions() {
         String str="\n";
-        str+= "TestName          : " + testNames[testIndex] + " \n";
-        str+= "InputDir          : " + inputDir + "\n";
-        str+= "OutputDir         : " + outputDir + "\n";
-        str+= "BufferSize        : " + "kryo: " + kryoBufferSize + " f22: " + f22BufferSize + "\n";
-        str+= "Serializer        : " + serializer[serializerIndex] + "\n";
-        str+= "PartitionSize     : " + ((isPartitionSet)?(paritionSize):("sizeNotSet, using the default from HDFS")) + "\n";
-        str+= "Sync output       : " + syncOutput + "\n";
-        str+= "No of warmup keys : " + warmUpKeys + "\n";
-        str+= "Verbose           : " + verbose + "\n";
-        str+= "spark options : ";
+        str+= "TestName              : " + testNames[testIndex] + " \n";
+        str+= "InputDir              : " + inputDir + "\n";
+        str+= "OutputDir             : " + outputDir + "\n";
+        str+= "(De)Ser BufferSizes   : " + "kryo: " + kryoBufferSize + " f22: " + f22BufferSize + "\n";
+        str+= "IO buffers            : " + "input: " + inputBufferSize + " (hack) output: " + outputXBufferSize + " bigIterator: " + useBigIterator + " \n";
+        str+= "Serializer            : " + serializer[serializerIndex] + "\n";
+        str+= "PartitionSize         : " + ((isPartitionSet)?(paritionSize):("sizeNotSet, using the default from HDFS")) + "\n";
+        str+= "Sync output           : " + syncOutput + "\n";
+        str+= "No of warmup keys     : " + warmUpKeys + "\n";
+        str+= "Verbose               : " + verbose + "\n";
+        str+= "Spark properties      : ";
         if(sparkParams.size() == 0)
             str+=" none " + " \n";
         else {
@@ -217,8 +231,20 @@ public class ParseTeraOptions {
         return warmUpKeys;
     }
 
-    public Boolean getVerbose(){
+    public boolean getVerbose(){
         return verbose;
+    }
+
+    public int getInputBufferSize(){
+        return inputBufferSize;
+    }
+
+    public int getOutputXBufferSize(){
+        return outputXBufferSize;
+    }
+
+    public boolean useBigIterator(){
+        return useBigIterator;
     }
 
     public void setSparkOptions(SparkContext context){
@@ -319,6 +345,13 @@ public class ParseTeraOptions {
             }
             if (cmd.hasOption("v")) {
                 verbose = true;
+            }
+            if (cmd.hasOption("I")) {
+                inputBufferSize = sizeStrToBytesInt((cmd.getOptionValue("I")));
+            }
+            if (cmd.hasOption("X")) {
+                outputXBufferSize = sizeStrToBytesInt((cmd.getOptionValue("X")));
+                useBigIterator = true;
             }
         } catch (ParseException e) {
             System.err.println("Failed to parse command line properties" + e);

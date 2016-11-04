@@ -62,20 +62,18 @@ class TeraOutputBigFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
 
     private val finalSync = getFinalSync(job)
     private val start = System.nanoTime()
-    //private val cacheBuffer = BufferCache.getInstance().getByteArrayBuffer(bufSize)
-    //private val byteBuffer = cacheBuffer.getByteArray
     private var copied = 0
     private val verbose = TaskContext.get().getLocalProperty(TeraSort.verboseKey).toBoolean
     private var totalOutputBytes = 0
     if(verbose) {
       System.err.println(TeraSort.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
-        " sync flag is : " + finalSync)
+        " initializing with the sync flag is : " + finalSync)
     }
 
     override  def write(key: Array[Byte], value: Array[Byte]) = {
       val size = ByteBuffer.wrap(key).getInt
       System.err.println(TeraSort.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
-        "value has " + size + " bytes")
+        " writing KV, with buffer size of " + size + " bytes")
       out.write(value, 0, size)
       copied = size
     }

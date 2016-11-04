@@ -35,6 +35,8 @@ object TeraSort {
   val f22BufSizeKey = "spark.terasort.f22buffersize"
   val kryoBufSizeKey = "spark.terasort.kryobuffersize"
   val verboseKey = "spark.terasort.verbose"
+  val inputBufferSizeKey = "spark.terasort.inputbuffersize"
+  val outputBufferSizeKey = "spark.terasort.outputbuffersize"
 
   val verbosePrefixF22 = "F22 | "
   val verbosePrefixSorter = "Sorter | "
@@ -56,10 +58,16 @@ object TeraSort {
     val options = new ParseTeraOptions
     options.parse(args)
 
-    if (options.getF22BufferSize % TeraInputFormat.RECORD_LEN != 0) {
-      System.err.println("F22 buffer size (" + options.getF22BufferSize +
-        " ) needs to be a multiple of TeraSort record size " + TeraInputFormat.RECORD_LEN)
-      System.exit(-1)
+    require(options.getF22BufferSize % TeraInputFormat.RECORD_LEN == 0,
+      "F22 buffer size (-B) (" + options.getF22BufferSize + " ) needs to be a multiple of TeraSort record size "
+        + TeraInputFormat.RECORD_LEN)
+    require(options.getInputBufferSize % TeraInputFormat.RECORD_LEN == 0,
+      "Input buffer size (-I) (" + options.getInputBufferSize + " ) needs to be a multiple of TeraSort record size "
+        + TeraInputFormat.RECORD_LEN)
+    if(options.useBigIterator()){
+      require(options.getOutputXBufferSize % TeraInputFormat.RECORD_LEN == 0,
+        "Output buffer size (" + options.getOutputXBufferSize + " ) needs to be a multiple of TeraSort record size "
+          + TeraInputFormat.RECORD_LEN)
     }
 
     println(" ##############################")
@@ -85,6 +93,8 @@ object TeraSort {
     sc.setLocalProperty(f22BufSizeKey, options.getF22BufferSize.toString)
     sc.setLocalProperty(kryoBufSizeKey, options.getKryoBufferSize.toString)
     sc.setLocalProperty(verboseKey, options.getVerbose.toString)
+    sc.setLocalProperty(inputBufferSizeKey, options.getInputBufferSize.toString)
+    sc.setLocalProperty(outputBufferSizeKey, options.getOutputXBufferSize.toString)
 
     if(options.getWarmUpKeys > 0) {
       doWarmup(sc, options)
@@ -101,7 +111,8 @@ object TeraSort {
         options.getSyncOutput)
 
       val beg = java.lang.System.currentTimeMillis()
-      val dataset = sc.newAPIHadoopFile[Array[Byte], Array[Byte], TeraInputFormat](inputFile)
+      // we should always do input buffering
+      val dataset = sc.newAPIHadoopFile[Array[Byte], Array[Byte], TeraInputBigFormat](inputFile)
       val setting = options.showOptions()
       println(setting)
 

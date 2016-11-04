@@ -124,6 +124,8 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
         /* if we did not read -1, which is EOF then insert - make sure to flip ;) */
         oBuf.buf.flip()
         bufferList+=oBuf
+        System.err.println(TeraSort.verbosePrefixSorter + " TID: " + TaskContext.get().taskAttemptId() +
+          " after fliip --- " + oBuf.buf.remaining())
         /* once we have it then lets sort it */
         NativeRadixSort.sort(oBuf.buf.asInstanceOf[DirectBuffer].address() /* address */,
           bytesRead/TeraInputFormat.RECORD_LEN /* number of elements */,
@@ -141,7 +143,7 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
     require(totalBytesRead % TeraInputFormat.RECORD_LEN == 0 ,
       " totalBytesRead " + totalBytesRead + " is not a multiple of the record length " + TeraInputFormat.RECORD_LEN)
     //new ByteBufferIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
-    new ByteBufferBigIterator(bufferList, verbose).asInstanceOf[Iterator[Product2[K, C]]]
+    new ByteBufferBigIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
   }
 }
 
@@ -202,27 +204,57 @@ private class ByteBufferIterator(bufferList: ListBuffer[OrderedByteBuffer], tota
   }
 }
 
-private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], verbose: Boolean)
+private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], totalBytesRead: Int, verbose: Boolean)
   extends Iterator[Product2[Array[Byte], Array[Byte]]] {
 
-  require(bufferList.length == 1, " BUG(): BigIterator only works with single buffer, currently " +
-    bufferList.length + " buffers")
-  var done = false
-  val keyBuffer = ByteBuffer.allocate(4).putInt(bufferList.head.buf.remaining()) //size of int
+  require(bufferList.length == 1, " Jonas: BigIterator only works with single buffer, currently " +
+    bufferList.length + " buffers, with total data size of " + totalBytesRead)
 
-  private val cacheBuffer = BufferCache.getInstance().getByteArrayBuffer(bufferList.head.buf.remaining())
-  private val value = cacheBuffer.getByteArray
-  System.err.println("Caching a buffer of : " + bufferList.head.buf.remaining())
-  bufferList.head.buf.get(value, 0, bufferList.head.buf.remaining())
-  private val key = keyBuffer.array()
+  require(bufferList.head.buf.remaining() == totalBytesRead,
+    " remaining is : " + bufferList.head.buf.remaining() + " total Bytes : " + totalBytesRead)
+
+  private var processed = 0
+  private val bufferSize = TaskContext.get().getLocalProperty(TeraSort.outputBufferSizeKey).toInt
+  private val bigSerBuffer = BufferCache.getInstance().getByteArrayBuffer(bufferSize)
+  private val bigValue = bigSerBuffer.getByteArray
+  private val bigKeyBuffer = ByteBuffer.allocate(4) // size of Int
+  /* the byte array that we will return */
+  private var bigKey = bigKeyBuffer.array()
+  /* if we have hit the end and time to return the buffer */
+  private var done = false
   private var bufferReturned = false
 
+  if(verbose) {
+    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
+      " BigIterator initialized with toalBytes: " + totalBytesRead + " bufferSize " + bufferSize)
+  }
+
+  def refillBuffer(): Unit = {
+    /* now we extract the min */
+    val min = Math.min(bufferSize, bufferList.head.buf.remaining())
+    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
+      " calculated the min of " + bufferSize + " remaining : " + bufferList.head.buf.remaining() + " as " + min)
+    /* we copy these many bytes into the byte buffer */
+    bufferList.head.buf.get(bigValue, 0, min)
+    /* we set the key size, first reset and then put */
+    bigKeyBuffer.clear()
+    bigKeyBuffer.putInt(min) //the current size that we have copied
+    bigKey = bigKeyBuffer.array()
+    processed+=min // update the local counter
+  }
+
   override def hasNext: Boolean = {
+    /* if we have remaining then we are not done */
+    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
+      " iterator has next? : " + !done)
     if(done && !bufferReturned) {
+      /* if we are done then return the buffer */
       val ins = OrderedByteBufferCache.getInstance()
       ins.putBuffer(bufferList.head)
-      if(verbose) {
+      BufferCache.getInstance().putBuffer(bigSerBuffer)
+      if (verbose) {
         System.err.println(ins.getStatistics)
+        System.err.println(BufferCache.getInstance().getCacheStatus)
       }
       bufferReturned = true
     }
@@ -230,7 +262,13 @@ private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], v
   }
 
   override def next(): Product2[Array[Byte], Array[Byte]] = {
-    done = true
-    (key, value)
+    /* every time we refill the buffer */
+    refillBuffer()
+    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
+      " sending a next pair of KV with size " + ByteBuffer.wrap(bigKey).getInt)
+    if(processed == totalBytesRead) {
+      done = true
+    }
+    (bigKey, bigValue)
   }
 }
