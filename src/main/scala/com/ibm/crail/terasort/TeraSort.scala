@@ -224,11 +224,10 @@ object TeraSort {
     val perWorker = if(totalKeys < totalWorkers) 1 else (totalKeys/totalWorkers).asInstanceOf[Int]
 
     val inx = scin.parallelize(0 until totalWorkers, totalWorkers).flatMap { p =>
-      val ranGen = new Random
       val arr1 = new Array[(Array[Byte], Array[Byte])](perWorker)
       for (i <- 0 until perWorker) {
         val key = new Array[Byte](TeraInputFormat.KEY_LEN)
-        ranGen.nextBytes(key)
+        key(0) = ( i % 256).asInstanceOf[Byte]
         val value = new Array[Byte](TeraInputFormat.VALUE_LEN)
         arr1(i) = (key, value)
       }

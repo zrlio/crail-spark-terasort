@@ -71,6 +71,8 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
         totalOutputBytes+=copied
         /* we flush here */
         out.write(byteBuffer, 0, copied)
+        System.err.println(TeraSort.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
+          " ###+ Data write out " + copied + " bytes ")
         copied = 0
       }
     }
@@ -89,6 +91,8 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
       /* unconditional flush here */
       totalOutputBytes+=copied
       out.write(byteBuffer, 0, copied)
+      System.err.println(TeraSort.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
+        " ###> Data write out " + copied + " bytes ")
       copied = 0
       /* put buffer back */
       BufferCache.getInstance().putBuffer(cacheBuffer)
@@ -143,7 +147,7 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
     val blockSize = fs.getConf().get("dfs.blocksize").toLong
     /* we always set both, min and max split, hence they must be equal */
     val preferredBufferSize = if(minSplit == 0) blockSize else minSplit
-    new TeraRecordWriter(fileOut, job, preferredBufferSize.toInt)
+    new TeraRecordWriter(fileOut, job, 500*1000*1000/*preferredBufferSize.toInt*/)
   }
 
   override def getOutputCommitter(context : TaskAttemptContext) : OutputCommitter = {
