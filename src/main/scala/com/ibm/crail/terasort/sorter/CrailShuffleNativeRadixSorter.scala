@@ -23,7 +23,6 @@ package com.ibm.crail.terasort.sorter
 
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicLong
-
 import com.ibm.crail.terasort.{BufferCache, TeraConf}
 import com.ibm.radixsort.NativeRadixSort
 import org.apache.spark.TaskContext
@@ -35,16 +34,22 @@ import scala.collection.mutable.ListBuffer
 
 private case class OrderedByteBuffer(buf: ByteBuffer) extends Ordered[OrderedByteBuffer] {
   override def compare(that: OrderedByteBuffer): Int = {
-    /* read int from the current position */
-    val thisInt = this.buf.getInt
-    /* revert */
-    buf.position(this.buf.position() - Integer.BYTES)
-    /* read int from the current position */
-    val thatInt = that.buf.getInt
-    /* revert */
-    that.buf.position(that.buf.position() - Integer.BYTES)
+    /* read a long from the current position - this will _NOT_ update the reading position */
+    val thisLong = this.buf.getLong(this.buf.position())
+    /* read a long from the current position - this will _NOT_ update the reading position */
+    val thatLong = that.buf.getLong(that.buf.position())
     /* compare and return results */
-    thisInt - thatInt
+    val diff = thisLong - thatLong
+    if(diff < 0) {
+      -1
+    } else if(diff > 0) {
+      +1
+    } else {
+      /* now both were equal hence we need to look into the last 2 bytes of the 10 byte key */
+      val thisShort = this.buf.getShort(this.buf.position() + java.lang.Long.BYTES)
+      val thatShort = that.buf.getShort(that.buf.position() + java.lang.Long.BYTES)
+      (thisShort - thatShort).toInt
+    }
   }
 
   /* just for debugging */
