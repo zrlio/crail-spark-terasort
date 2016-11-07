@@ -22,7 +22,7 @@
 
 package com.ibm.crail.terasort
 
-import com.google.common.primitives.UnsignedBytes
+import com.google.common.primitives.{Ints, UnsignedBytes}
 import com.ibm.crail.terasort.serializer.{ByteSerializer, F22Serializer, KryoSerializer}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
 import org.apache.spark.rdd._
@@ -181,9 +181,13 @@ object TeraSort {
       }
 
       /* we expect key to be a byte array - a byte gives us 256 partitions */
-      def getPartition(key: Any): Int = key match {
+      def getPartition(k: Any): Int = k match {
         case null => 0
-        case _ => nonNegativeMod(key.asInstanceOf[Array[Byte]](0), numPartitions)
+        case _ => {
+          /* extract the integer from the first 4 bytes */
+          val key = Ints.fromByteArray(k.asInstanceOf[Array[Byte]].slice(0, Integer.BYTES))
+          nonNegativeMod(key, numPartitions)
+        }
       }
 
       override def equals(other: Any): Boolean = other match {
@@ -210,8 +214,11 @@ object TeraSort {
     val inx = scin.parallelize(0 until totalWorkers, totalWorkers).flatMap { p =>
       val arr1 = new Array[(Array[Byte], Array[Byte])](perWorker)
       for (i <- 0 until perWorker) {
+        /* encode the index as the key for partitioning */
         val key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
-        key(0) = ( i % 256).asInstanceOf[Byte]
+        val keyAsByteArray = Ints.toByteArray(i)
+        System.arraycopy(keyAsByteArray, 0, key, 0, keyAsByteArray.length)
+        /* we can leave the value as it is */
         val value = new Array[Byte](TeraConf.INPUT_VALUE_LEN)
         arr1(i) = (key, value)
       }
