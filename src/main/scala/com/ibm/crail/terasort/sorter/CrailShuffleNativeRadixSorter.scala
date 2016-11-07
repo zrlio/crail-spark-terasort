@@ -219,7 +219,7 @@ private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], t
   private val bufferSize = TaskContext.get().getLocalProperty(TeraConf.outputBufferSizeKey).toInt
   private val bigSerBuffer = BufferCache.getInstance().getByteArrayBuffer(bufferSize)
   private val bigValue = bigSerBuffer.getByteArray
-  private val bigKeyBuffer = ByteBuffer.allocate(4) // size of Int
+  private val bigKeyBuffer = ByteBuffer.allocate(Integer.BYTES) // the size of Int on the machine
   /* the byte array that we will return */
   private var bigKey = bigKeyBuffer.array()
   /* if we have hit the end and time to return the buffer */

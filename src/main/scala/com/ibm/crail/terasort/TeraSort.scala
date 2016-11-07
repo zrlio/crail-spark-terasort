@@ -50,8 +50,8 @@ object TeraSort {
       "Input buffer size (-I) (" + options.getInputBufferSize + " ) needs to be a multiple of TeraSort record size "
         + TeraConf.INPUT_RECORD_LEN)
     if(options.useBigIterator()){
-      require(options.getOutputXBufferSize % TeraConf.INPUT_RECORD_LEN == 0,
-        "Output buffer size (" + options.getOutputXBufferSize + " ) needs to be a multiple of TeraSort record size "
+      require(options.getOutputBufferSize % TeraConf.INPUT_RECORD_LEN == 0,
+        "Output buffer size (" + options.getOutputBufferSize + " ) needs to be a multiple of TeraSort record size "
           + TeraConf.INPUT_RECORD_LEN)
     }
 
@@ -79,7 +79,7 @@ object TeraSort {
     sc.setLocalProperty(TeraConf.kryoBufSizeKey, options.getKryoBufferSize.toString)
     sc.setLocalProperty(TeraConf.verboseKey, options.getVerbose.toString)
     sc.setLocalProperty(TeraConf.inputBufferSizeKey, options.getInputBufferSize.toString)
-    sc.setLocalProperty(TeraConf.outputBufferSizeKey, options.getOutputXBufferSize.toString)
+    sc.setLocalProperty(TeraConf.outputBufferSizeKey, options.getOutputBufferSize.toString)
     sc.setLocalProperty(TeraConf.useBigIteratorKey, options.useBigIterator().toString)
 
     if(options.getWarmUpKeys > 0) {

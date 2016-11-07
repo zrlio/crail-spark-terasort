@@ -32,6 +32,7 @@ import org.apache.spark.TaskContext
 
 class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
   var committer : OutputCommitter = null
+  val explictBufferSize = TaskContext.get().getLocalProperty(TeraConf.outputBufferSizeKey).toInt
 
   /**
     * Set the requirement for a final sync before the stream is closed.
@@ -124,7 +125,7 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
     }
   }
 
-  def getRecordWriter(job : TaskAttemptContext)
+  def getRecordWriterRespectSplitSize(job : TaskAttemptContext)
   : RecordWriter[Array[Byte], Array[Byte]] = {
     val file : Path = getDefaultWorkFile(job, "")
     val fs : FileSystem = file.getFileSystem(job.getConfiguration)
@@ -139,6 +140,21 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
     /* we always set both, min and max split, hence they must be equal */
     val preferredBufferSize = if(minSplit == 0) blockSize else minSplit
     new TeraRecordWriter(fileOut, job, preferredBufferSize.toInt)
+  }
+
+  def getRecordWriterUseExplicitBufferSize(job : TaskAttemptContext)
+  : RecordWriter[Array[Byte], Array[Byte]] = {
+    val file : Path = getDefaultWorkFile(job, "")
+    val fs : FileSystem = file.getFileSystem(job.getConfiguration)
+    fs.setVerifyChecksum(false)
+    fs.setWriteChecksum(false)
+    val fileOut : FSDataOutputStream = fs.create(file)
+
+    new TeraRecordWriter(fileOut, job, explictBufferSize)
+  }
+
+  def getRecordWriter(job : TaskAttemptContext):RecordWriter[Array[Byte], Array[Byte]] = {
+    getRecordWriterUseExplicitBufferSize(job)
   }
 
   override def getOutputCommitter(context : TaskAttemptContext) : OutputCommitter = {

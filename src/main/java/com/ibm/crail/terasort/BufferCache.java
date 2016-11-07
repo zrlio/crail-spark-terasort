@@ -67,7 +67,7 @@ public class BufferCache {
     }
 
     public synchronized String getCacheStatus(){
-        return " byteBufferCache totalAccess: " + totalAccess +
+        return " ByteArrayCache totalAccess: " + totalAccess +
                 " misses : " + missAccess +
                 " hitrate: " + (totalAccess - missAccess) * 100 / totalAccess + " % " ;
     }
