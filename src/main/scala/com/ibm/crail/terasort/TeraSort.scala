@@ -196,7 +196,7 @@ object TeraSort {
       override def hashCode: Int = numPartitions
     }
 
-    val outputFile = "/terasort-output-warmup-"+options.getWarmUpKeys+"-keys"
+    val outputFile = "/terasort-output-warmup-with-"+options.getWarmUpKeys+"-keys"
     val cores = if(scin.getConf.contains("spark.executor.cores")) scin.getConf.get("spark.executor.cores").toInt else 1
     val exes = if(scin.getConf.contains("spark.executor.instances")) scin.getConf.get("spark.executor.instances").toInt else 2
 

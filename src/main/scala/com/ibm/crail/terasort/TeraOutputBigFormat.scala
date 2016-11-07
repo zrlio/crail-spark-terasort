@@ -62,11 +62,8 @@ class TeraOutputBigFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
       System.err.println(TeraConf.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
         " initializing with the sync flag is : " + finalSync)
     }
-
     override  def write(key: Array[Byte], value: Array[Byte]) = {
       val size = ByteBuffer.wrap(key).getInt
-      System.err.println(TeraConf.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
-        " writing KV, with buffer size of " + size + " bytes, byte array length is : " + value.length)
       try {
         out.write(value, 0, size)
       }catch {

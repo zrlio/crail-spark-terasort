@@ -66,8 +66,6 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
         totalOutputBytes+=copied
         /* we flush here */
         out.write(byteBuffer, 0, copied)
-        System.err.println(TeraConf.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
-          " ###+ Data write out " + copied + " bytes ")
         copied = 0
       }
     }
@@ -86,8 +84,6 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
       /* unconditional flush here */
       totalOutputBytes+=copied
       out.write(byteBuffer, 0, copied)
-      System.err.println(TeraConf.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
-        " ###> Data write out " + copied + " bytes ")
       copied = 0
       /* put buffer back */
       BufferCache.getInstance().putBuffer(cacheBuffer)

@@ -125,13 +125,14 @@ class F22SerializerStream(outStream: CrailBufferedOutputStream) extends CrailSer
 
 class F22DeserializerStream(inStream: CrailMultiStream) extends CrailDeserializationStream {
 
+  val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
+
   override final def readObject[T: ClassTag](): T = {
     throw new IOException("this call is not yet supported : readObject " +
       " \n perhaps you forgot to set spark.crail.shuffle.sorter setting in your spark conf to match F22")
   }
 
   override def read(buf: ByteBuffer): Int = {
-    val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
     val start = System.nanoTime()
     /* we attempt to read min(in file, buf.remaining) */
     val asked = buf.remaining()

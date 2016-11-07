@@ -125,8 +125,6 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
         /* if we did not read -1, which is EOF then insert - make sure to flip ;) */
         oBuf.buf.flip()
         bufferList+=oBuf
-        System.err.println(TeraConf.verbosePrefixSorter + " TID: " + TaskContext.get().taskAttemptId() +
-          " after fliip --- " + oBuf.buf.remaining())
         /* once we have it then lets sort it */
         NativeRadixSort.sort(oBuf.buf.asInstanceOf[DirectBuffer].address() /* address */,
           bytesRead/TeraConf.INPUT_RECORD_LEN /* number of elements */,
@@ -253,8 +251,9 @@ private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], t
       ins.putBuffer(bufferList.head)
       BufferCache.getInstance().putBuffer(bigSerBuffer)
       if (verbose) {
-        System.err.println(ins.getStatistics)
-        System.err.println(BufferCache.getInstance().getCacheStatus)
+        System.err.println(ins.getStatistics + " putting the buffer down. ")
+        System.err.println(TeraConf.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
+          BufferCache.getInstance().getCacheStatus + " putting the buffer down. ")
       }
       bufferReturned = true
     }
