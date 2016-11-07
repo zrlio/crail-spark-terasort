@@ -26,17 +26,11 @@ import java.io.EOFException
 import java.util.List
 
 import org.apache.hadoop.fs.{FSDataInputStream, FileStatus, FileSystem, Path}
-import org.apache.hadoop.mapreduce.{InputSplit, JobContext, RecordReader, TaskAttemptContext}
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, FileSplit}
+import org.apache.hadoop.mapreduce.{InputSplit, JobContext, RecordReader, TaskAttemptContext}
 import org.apache.spark.TaskContext
 
 import scala.collection.JavaConversions._
-
-object TeraInputFormat {
-  val KEY_LEN = 10
-  val VALUE_LEN = 90
-  val RECORD_LEN = KEY_LEN + VALUE_LEN
-}
 
 class TeraInputFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
 
@@ -63,7 +57,7 @@ class TeraInputFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
     private var incomingBytes:Int = 0
     private var copiedSoFar:Int = 0
     private var hitEnd:Boolean = false
-    private val verbose = TaskContext.get().getLocalProperty(TeraSort.verboseKey).toBoolean
+    private val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
 
     //this function must be called just once !!
     private def fillUpBigBuffer(): Unit = {
@@ -83,7 +77,7 @@ class TeraInputFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       copiedSoFar = 0
       if(verbose) {
         val timeUs = (System.nanoTime() - start) / 1000
-        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
           " HDFS read bytes: " + incomingBytes +
           " time : " + timeUs + " usec , or " +
           (incomingBytes.asInstanceOf[Long] * 8) / timeUs + " Mbps")
@@ -95,15 +89,15 @@ class TeraInputFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
         return false
       }
       /* now we have to copy out things */
-      System.arraycopy(byteArray, copiedSoFar, key, 0, TeraInputFormat.KEY_LEN)
-      copiedSoFar += TeraInputFormat.KEY_LEN
-      System.arraycopy(byteArray, copiedSoFar, value,  0, TeraInputFormat.VALUE_LEN)
-      copiedSoFar += TeraInputFormat.VALUE_LEN
+      System.arraycopy(byteArray, copiedSoFar, key, 0, TeraConf.INPUT_KEY_LEN)
+      copiedSoFar += TeraConf.INPUT_KEY_LEN
+      System.arraycopy(byteArray, copiedSoFar, value,  0, TeraConf.INPUT_VALUE_LEN)
+      copiedSoFar += TeraConf.INPUT_VALUE_LEN
       true
     }
 
     override final def initialize(split : InputSplit, context : TaskAttemptContext) = {
-      val reclen = TeraInputFormat.RECORD_LEN
+      val reclen = TeraConf.INPUT_RECORD_LEN
       val fileSplit = split.asInstanceOf[FileSplit]
       val p : Path = fileSplit.getPath
       val fs : FileSystem = p.getFileSystem(context.getConfiguration)
@@ -115,18 +109,18 @@ class TeraInputFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       in.seek(start)
       //check how much is available in the file, with a full multiple this should be good
       length = Math.min(fileSplit.getLength, in.available()) - offset
-      val rem = (start + length)%TeraInputFormat.RECORD_LEN
-      val endOffset = if(rem == 0) start + length else (start + length + (TeraInputFormat.RECORD_LEN - rem))
+      val rem = (start + length)%TeraConf.INPUT_RECORD_LEN
+      val endOffset = if(rem == 0) start + length else (start + length + (TeraConf.INPUT_RECORD_LEN - rem))
       incomingBytes = (endOffset - start).toInt
 
-      require((incomingBytes % TeraInputFormat.RECORD_LEN) == 0 ,
-        " incomingBytes did not alight : " + incomingBytes + " mod : " + (incomingBytes % TeraInputFormat.RECORD_LEN))
+      require((incomingBytes % TeraConf.INPUT_RECORD_LEN) == 0 ,
+        " incomingBytes did not alight : " + incomingBytes + " mod : " + (incomingBytes % TeraConf.INPUT_RECORD_LEN))
 
       if (key == null) {
-        key = new Array[Byte](TeraInputFormat.KEY_LEN)
+        key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
       }
       if (value == null) {
-        value = new Array[Byte](TeraInputFormat.VALUE_LEN)
+        value = new Array[Byte](TeraConf.INPUT_VALUE_LEN)
       }
       serBuffer = BufferCache.getInstance().getByteArrayBuffer(incomingBytes)
       byteArray = serBuffer.getByteArray
@@ -139,7 +133,7 @@ class TeraInputFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       BufferCache.getInstance().putBuffer(serBuffer)
       in.close()
       if(verbose){
-        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
           " finished, processed " + incomingBytes + " bytes, " + BufferCache.getInstance.getCacheStatus)
       }
     }

@@ -25,7 +25,7 @@ package com.ibm.crail.terasort.serializer
 import java.io._
 import java.nio.ByteBuffer
 
-import com.ibm.crail.terasort.{TeraSort, TeraInputFormat}
+import com.ibm.crail.terasort.TeraConf
 import com.ibm.crail.{CrailBufferedOutputStream, CrailMultiStream}
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, Serializer, SerializerInstance}
 import org.apache.spark.shuffle.crail.{CrailDeserializationStream, CrailSerializationStream, CrailSerializerInstance, CrailShuffleSerializer}
@@ -131,7 +131,7 @@ class F22DeserializerStream(inStream: CrailMultiStream) extends CrailDeserializa
   }
 
   override def read(buf: ByteBuffer): Int = {
-    val verbose = TaskContext.get().getLocalProperty(TeraSort.verboseKey).toBoolean
+    val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
     val start = System.nanoTime()
     /* we attempt to read min(in file, buf.remaining) */
     val asked = buf.remaining()
@@ -142,7 +142,7 @@ class F22DeserializerStream(inStream: CrailMultiStream) extends CrailDeserializa
         if(verbose) {
           val timeUs = (System.nanoTime() - start) / 1000
           val bw = soFar.asInstanceOf[Long] * 8 / (timeUs + 1) //just to avoid divide by zero error
-          System.err.println(TeraSort.verbosePrefixF22 + " TID: " + TaskContext.get().taskAttemptId() +
+          System.err.println(TeraConf.verbosePrefixF22 + " TID: " + TaskContext.get().taskAttemptId() +
             " crail reading bytes : " + soFar + " in " + timeUs + " usec or " + bw + " Mbps")
         }
         /* we have reached the end of the file */
@@ -154,7 +154,7 @@ class F22DeserializerStream(inStream: CrailMultiStream) extends CrailDeserializa
     if(verbose) {
       val timeUs = (System.nanoTime() - start) / 1000
       val bw = soFar.asInstanceOf[Long] * 8 / (timeUs + 1) //just to avoid divide by zero error
-      System.err.println(TeraSort.verbosePrefixF22 + " TID: " + TaskContext.get().taskAttemptId() +
+      System.err.println(TeraConf.verbosePrefixF22 + " TID: " + TaskContext.get().taskAttemptId() +
         " crail reading bytes : " + soFar + " in " + timeUs + " usec or " + bw + " Mbps")
     }
     soFar
@@ -162,7 +162,7 @@ class F22DeserializerStream(inStream: CrailMultiStream) extends CrailDeserializa
 
   override final def readKey[T: ClassTag](): T = {
 
-    val key = new Array[Byte](TeraInputFormat.KEY_LEN)
+    val key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
     val ret = inStream.read(key)
     if(ret == -1) {
       /* mark the end of the stream : this is caught by spark to mark EOF - duh ! */
@@ -172,7 +172,7 @@ class F22DeserializerStream(inStream: CrailMultiStream) extends CrailDeserializa
   }
 
   override final def readValue[T: ClassTag](): T = {
-    val value = new Array[Byte](TeraInputFormat.VALUE_LEN)
+    val value = new Array[Byte](TeraConf.INPUT_VALUE_LEN)
     val ret = inStream.read(value)
     if(ret == -1) {
       /* mark the end of the stream : this is caught by spark to mark EOF - duh ! */

@@ -30,16 +30,10 @@ import java.nio.ByteBuffer
 
 import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
 import org.apache.hadoop.mapred.InvalidJobConfException
-import org.apache.hadoop.mapreduce.{JobContext, OutputCommitter, RecordWriter, TaskAttemptContext}
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
 import org.apache.hadoop.mapreduce.lib.output.{FileOutputCommitter, FileOutputFormat}
 import org.apache.hadoop.mapreduce.security.TokenCache
+import org.apache.hadoop.mapreduce.{JobContext, OutputCommitter, RecordWriter, TaskAttemptContext}
 import org.apache.spark.TaskContext
-
-object TeraOutputBigFormat {
-  val FINAL_SYNC_ATTRIBUTE = "mapreduce.terasort.final.sync"
-  val OUTDIR = "mapreduce.output.fileoutputformat.outputdir"
-}
 
 class TeraOutputBigFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
   var committer : OutputCommitter = null
@@ -48,13 +42,13 @@ class TeraOutputBigFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
     * Set the requirement for a final sync before the stream is closed.
     */
   def setFinalSync(job : JobContext, newValue : Boolean) =
-    job.getConfiguration.setBoolean(TeraOutputBigFormat.FINAL_SYNC_ATTRIBUTE, newValue)
+    job.getConfiguration.setBoolean(TeraConf.OUTPUT_SYNC_ATTRIBUTE, newValue)
 
   /**
     * Does the user want a final sync at close?
     */
   def getFinalSync(job : JobContext ) : Boolean =
-    job.getConfiguration.getBoolean(TeraOutputBigFormat.FINAL_SYNC_ATTRIBUTE,
+    job.getConfiguration.getBoolean(TeraConf.OUTPUT_SYNC_ATTRIBUTE,
       false)
 
   class TeraRecordBigWriter(val out : FSDataOutputStream, val job: JobContext)
@@ -62,16 +56,16 @@ class TeraOutputBigFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
 
     private val finalSync = getFinalSync(job)
     private val start = System.nanoTime()
-    private val verbose = TaskContext.get().getLocalProperty(TeraSort.verboseKey).toBoolean
+    private val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
     private var totalOutputBytes = 0
     if(verbose) {
-      System.err.println(TeraSort.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
+      System.err.println(TeraConf.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
         " initializing with the sync flag is : " + finalSync)
     }
 
     override  def write(key: Array[Byte], value: Array[Byte]) = {
       val size = ByteBuffer.wrap(key).getInt
-      System.err.println(TeraSort.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
+      System.err.println(TeraConf.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
         " writing KV, with buffer size of " + size + " bytes, byte array length is : " + value.length)
       try {
         out.write(value, 0, size)
@@ -90,7 +84,7 @@ class TeraOutputBigFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
       out.close()
       if(verbose) {
         val end = System.nanoTime()
-        System.err.println(TeraSort.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixHDFSOutput + " TID: " + TaskContext.get.taskAttemptId() +
           " finished writing " + totalOutputBytes + " bytes, " +
           BufferCache.getInstance.getCacheStatus + " jobtime: " + (end - start) / 1000 + " usec")
       }
@@ -113,7 +107,7 @@ class TeraOutputBigFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
   Backported from Hadoop FileOutputPath from later versions than 1.0.4
    */
   def getOutputPath(job : JobContext ) : Path =  {
-    job.getConfiguration.get(TeraOutputBigFormat.OUTDIR) match {
+    job.getConfiguration.get(TeraConf.OUTPUT_DIR) match {
       case null => null
       case name => new Path(name)
     }

@@ -25,7 +25,7 @@ package com.ibm.crail.terasort.serializer
 import java.io.{IOException, _}
 import java.nio.ByteBuffer
 
-import com.ibm.crail.terasort.TeraInputFormat
+import com.ibm.crail.terasort.TeraConf
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, Serializer, SerializerInstance}
 
 import scala.reflect.ClassTag
@@ -123,13 +123,13 @@ class ByteDeserializerStream(explicitByteSerializerInstance: ByteSerializerInsta
   }
 
   override final def readKey[T: ClassTag](): T = {
-    val key = new Array[Byte](TeraInputFormat.KEY_LEN)
+    val key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
     readBytes(key)
     key.asInstanceOf[T]
   }
 
   override final def readValue[T: ClassTag](): T = {
-    val value = new Array[Byte](TeraInputFormat.VALUE_LEN)
+    val value = new Array[Byte](TeraConf.INPUT_VALUE_LEN)
     readBytes(value)
     value.asInstanceOf[T]
   }

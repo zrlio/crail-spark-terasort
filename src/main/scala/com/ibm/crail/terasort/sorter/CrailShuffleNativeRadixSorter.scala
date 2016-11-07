@@ -24,7 +24,7 @@ package com.ibm.crail.terasort.sorter
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicLong
 
-import com.ibm.crail.terasort.{BufferCache, TeraSort, TeraInputFormat}
+import com.ibm.crail.terasort.{BufferCache, TeraConf}
 import com.ibm.radixsort.NativeRadixSort
 import org.apache.spark.TaskContext
 import org.apache.spark.serializer.Serializer
@@ -83,7 +83,7 @@ private class OrderedByteBufferCache(size: Int) {
   }
 
   def getStatistics:String = {
-    TeraSort.verbosePrefixCache + " TID: " + TaskContext.get().taskAttemptId() + " OrderedCache: totalAccesses " +
+    TeraConf.verbosePrefixCache + " TID: " + TaskContext.get().taskAttemptId() + " OrderedCache: totalAccesses " +
       get.get() + " misses " + miss.get() + " puts " + put.get() +
       " hitrate " + ((get.get() - miss.get) * 100 / get.get()) + " %"
   }
@@ -95,7 +95,7 @@ private object OrderedByteBufferCache {
   final def getInstance():OrderedByteBufferCache = {
     this.synchronized {
       if(instance == null) {
-        val size = TaskContext.get().getLocalProperty(TeraSort.f22BufSizeKey).toInt
+        val size = TaskContext.get().getLocalProperty(TeraConf.f22BufSizeKey).toInt
         instance = new OrderedByteBufferCache(size)
       }
     }
@@ -107,42 +107,42 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
   override def sort[K, C](context: TaskContext, keyOrd: Ordering[K], ser: Serializer,
                           inputStream: CrailDeserializationStream): Iterator[Product2[K, C]] = {
 
-    val verbose = TaskContext.get().getLocalProperty(TeraSort.verboseKey).toBoolean
+    val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
     /* we collect data in a list of OrderedByteBuffer */
     val bufferList = ListBuffer[OrderedByteBuffer]()
     var totalBytesRead = 0
-    val expectedRead = TaskContext.get().getLocalProperty(TeraSort.f22BufSizeKey).toInt
-    val useBigIterator = TaskContext.get().getLocalProperty(TeraSort.useBigIteratorKey).toBoolean
+    val expectedRead = TaskContext.get().getLocalProperty(TeraConf.f22BufSizeKey).toInt
+    val useBigIterator = TaskContext.get().getLocalProperty(TeraConf.useBigIteratorKey).toBoolean
     var bytesRead = expectedRead // to start the loop
     while(bytesRead == expectedRead) {
       /* this needs to be a multiple of KV size otherwise we will break the record boundary */
       val oBuf = OrderedByteBufferCache.getInstance().getBuffer
       bytesRead = inputStream.read(oBuf.buf)
-      require(bytesRead % TeraInputFormat.RECORD_LEN == 0,
-        " bytesRead " + bytesRead + " is not a multiple of the record length " + TeraInputFormat.RECORD_LEN)
+      require(bytesRead % TeraConf.INPUT_RECORD_LEN == 0,
+        " bytesRead " + bytesRead + " is not a multiple of the record length " + TeraConf.INPUT_RECORD_LEN)
       /* from F22 semantics, when we hit EOF we will get 0 */
       if(bytesRead >= 0) {
         /* if we did not read -1, which is EOF then insert - make sure to flip ;) */
         oBuf.buf.flip()
         bufferList+=oBuf
-        System.err.println(TeraSort.verbosePrefixSorter + " TID: " + TaskContext.get().taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixSorter + " TID: " + TaskContext.get().taskAttemptId() +
           " after fliip --- " + oBuf.buf.remaining())
         /* once we have it then lets sort it */
         NativeRadixSort.sort(oBuf.buf.asInstanceOf[DirectBuffer].address() /* address */,
-          bytesRead/TeraInputFormat.RECORD_LEN /* number of elements */,
-          TeraInputFormat.KEY_LEN /* can use on the serializer interface of keySize and valueSize */,
-          TeraInputFormat.RECORD_LEN)
+          bytesRead/TeraConf.INPUT_RECORD_LEN /* number of elements */,
+          TeraConf.INPUT_KEY_LEN /* can use on the serializer interface of keySize and valueSize */,
+          TeraConf.INPUT_RECORD_LEN)
       }
       totalBytesRead+=bytesRead
       /* now if we have read less than expected, that would be the end of the file */
     }
     if(verbose) {
-      System.err.println(TeraSort.verbosePrefixSorter + " TID: " + TaskContext.get().taskAttemptId() +
+      System.err.println(TeraConf.verbosePrefixSorter + " TID: " + TaskContext.get().taskAttemptId() +
         " assembled " + totalBytesRead + " bytes in " + bufferList.length + " buffers")
     }
 
-    require(totalBytesRead % TeraInputFormat.RECORD_LEN == 0 ,
-      " totalBytesRead " + totalBytesRead + " is not a multiple of the record length " + TeraInputFormat.RECORD_LEN)
+    require(totalBytesRead % TeraConf.INPUT_RECORD_LEN == 0 ,
+      " totalBytesRead " + totalBytesRead + " is not a multiple of the record length " + TeraConf.INPUT_RECORD_LEN)
     if(useBigIterator) {
       new ByteBufferBigIterator(bufferList, totalBytesRead, verbose).asInstanceOf[Iterator[Product2[K, C]]]
     } else {
@@ -154,9 +154,9 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
 private class ByteBufferIterator(bufferList: ListBuffer[OrderedByteBuffer], totalBytesRead: Int, verbose: Boolean)
   extends Iterator[Product2[Array[Byte], Array[Byte]]] {
 
-  private val key = new Array[Byte](TeraInputFormat.KEY_LEN)
-  private val value = new Array[Byte](TeraInputFormat.VALUE_LEN)
-  private val numElements = totalBytesRead/TeraInputFormat.RECORD_LEN
+  private val key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
+  private val value = new Array[Byte](TeraConf.INPUT_VALUE_LEN)
+  private val numElements = totalBytesRead/TeraConf.INPUT_RECORD_LEN
   private var processed = 0
   private val kv = (key, value)
   private var currentMin = bufferList.head
@@ -218,7 +218,7 @@ private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], t
     " remaining is : " + bufferList.head.buf.remaining() + " total Bytes : " + totalBytesRead)
 
   private var processed = 0
-  private val bufferSize = TaskContext.get().getLocalProperty(TeraSort.outputBufferSizeKey).toInt
+  private val bufferSize = TaskContext.get().getLocalProperty(TeraConf.outputBufferSizeKey).toInt
   private val bigSerBuffer = BufferCache.getInstance().getByteArrayBuffer(bufferSize)
   private val bigValue = bigSerBuffer.getByteArray
   private val bigKeyBuffer = ByteBuffer.allocate(4) // size of Int
@@ -229,15 +229,13 @@ private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], t
   private var bufferReturned = false
 
   if(verbose) {
-    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
+    System.err.println(TeraConf.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
       " BigIterator initialized with toalBytes: " + totalBytesRead + " bufferSize " + bufferSize)
   }
 
   def refillBuffer(): Unit = {
     /* now we extract the min */
     val min = Math.min(bufferSize, bufferList.head.buf.remaining())
-    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
-      " calculated the min of " + bufferSize + " remaining : " + bufferList.head.buf.remaining() + " as " + min)
     /* we copy these many bytes into the byte buffer */
     bufferList.head.buf.get(bigValue, 0, min)
     /* we set the key size, first reset and then put */
@@ -249,8 +247,6 @@ private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], t
 
   override def hasNext: Boolean = {
     /* if we have remaining then we are not done */
-    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
-      " iterator has next? : " + !done)
     if(done && !bufferReturned) {
       /* if we are done then return the buffer */
       val ins = OrderedByteBufferCache.getInstance()
@@ -268,8 +264,6 @@ private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], t
   override def next(): Product2[Array[Byte], Array[Byte]] = {
     /* every time we refill the buffer */
     refillBuffer()
-    System.err.println(TeraSort.verbosePrefixIterator + " TID: " + TaskContext.get().taskAttemptId() +
-      " sending a next pair of KV with size " + ByteBuffer.wrap(bigKey).getInt)
     if(processed == totalBytesRead) {
       done = true
     }

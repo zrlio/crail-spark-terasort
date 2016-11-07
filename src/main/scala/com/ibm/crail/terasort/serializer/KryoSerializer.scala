@@ -28,7 +28,7 @@ import javax.annotation.Nullable
 
 import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOuput}
 import com.esotericsoftware.kryo.{Kryo, KryoException}
-import com.ibm.crail.terasort.{TeraSort, ParseTeraOptions}
+import com.ibm.crail.terasort.TeraConf
 import org.apache.spark.TaskContext
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, Serializer, SerializerInstance}
 
@@ -153,7 +153,7 @@ class KryoSerializerInstance() extends SerializerInstance {
 class KryoSerializerStream(teraSerializerInstance: KryoSerializerInstance, outStream: OutputStream) extends SerializationStream {
 
   private[this] var output:KryoOuput = new KryoOuput(outStream,
-    TaskContext.get().getLocalProperty(TeraSort.kryoBufSizeKey).toInt)
+    TaskContext.get().getLocalProperty(TeraConf.kryoBufSizeKey).toInt)
   private[this] var kryo: Kryo = teraSerializerInstance.borrowKryo()
 
   override final def writeObject[T: ClassTag](t: T): SerializationStream = {
@@ -195,7 +195,7 @@ class KryoSerializerStream(teraSerializerInstance: KryoSerializerInstance, outSt
 class KryoDeserializerStream(teraSerializerInstance: KryoSerializerInstance, inStream: InputStream) extends DeserializationStream {
 
   private[this] var input: KryoInput = new KryoInput(inStream,
-    TaskContext.get().getLocalProperty(TeraSort.kryoBufSizeKey).toInt)
+    TaskContext.get().getLocalProperty(TeraConf.kryoBufSizeKey).toInt)
   private[this] var kryo: Kryo = teraSerializerInstance.borrowKryo()
 
   override final def readObject[T: ClassTag](): T = {

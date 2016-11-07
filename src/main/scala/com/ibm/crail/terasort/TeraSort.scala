@@ -22,29 +22,13 @@
 
 package com.ibm.crail.terasort
 
-import java.util.Random
-
 import com.google.common.primitives.UnsignedBytes
 import com.ibm.crail.terasort.serializer.{ByteSerializer, F22Serializer, KryoSerializer}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
 import org.apache.spark.rdd._
-import org.apache.spark.{SparkConf, SparkContext, Partitioner}
+import org.apache.spark.{Partitioner, SparkConf, SparkContext}
 
 object TeraSort {
-
-  val f22BufSizeKey = "spark.terasort.f22buffersize"
-  val kryoBufSizeKey = "spark.terasort.kryobuffersize"
-  val verboseKey = "spark.terasort.verbose"
-  val inputBufferSizeKey = "spark.terasort.inputbuffersize"
-  val outputBufferSizeKey = "spark.terasort.outputbuffersize"
-  val useBigIteratorKey = "spark.terasort.usebigiterator"
-
-  val verbosePrefixF22 = "F22 | "
-  val verbosePrefixSorter = "Sorter | "
-  val verbosePrefixIterator = "SorterIterator | "
-  val verbosePrefixCache = "Cache | "
-  val verbosePrefixHDFSInput = "HDFSInput | "
-  val verbosePrefixHDFSOutput = "HDFSOutput | "
 
   val keyOrder = new Ordering[Array[Byte]] {
     override def compare (a:Array[Byte], b:Array[Byte]) = UnsignedBytes.lexicographicalComparator.compare(a,b)
@@ -59,16 +43,16 @@ object TeraSort {
     val options = new ParseTeraOptions
     options.parse(args)
 
-    require(options.getF22BufferSize % TeraInputFormat.RECORD_LEN == 0,
+    require(options.getF22BufferSize % TeraConf.INPUT_RECORD_LEN == 0,
       "F22 buffer size (-B) (" + options.getF22BufferSize + " ) needs to be a multiple of TeraSort record size "
-        + TeraInputFormat.RECORD_LEN)
-    require(options.getInputBufferSize % TeraInputFormat.RECORD_LEN == 0,
+        + TeraConf.INPUT_RECORD_LEN)
+    require(options.getInputBufferSize % TeraConf.INPUT_RECORD_LEN == 0,
       "Input buffer size (-I) (" + options.getInputBufferSize + " ) needs to be a multiple of TeraSort record size "
-        + TeraInputFormat.RECORD_LEN)
+        + TeraConf.INPUT_RECORD_LEN)
     if(options.useBigIterator()){
-      require(options.getOutputXBufferSize % TeraInputFormat.RECORD_LEN == 0,
+      require(options.getOutputXBufferSize % TeraConf.INPUT_RECORD_LEN == 0,
         "Output buffer size (" + options.getOutputXBufferSize + " ) needs to be a multiple of TeraSort record size "
-          + TeraInputFormat.RECORD_LEN)
+          + TeraConf.INPUT_RECORD_LEN)
     }
 
     println(" ##############################")
@@ -91,12 +75,12 @@ object TeraSort {
     /* now we set the params */
     options.setSparkOptions(sc)
     /* set all the properties that we read downstream in executors */
-    sc.setLocalProperty(f22BufSizeKey, options.getF22BufferSize.toString)
-    sc.setLocalProperty(kryoBufSizeKey, options.getKryoBufferSize.toString)
-    sc.setLocalProperty(verboseKey, options.getVerbose.toString)
-    sc.setLocalProperty(inputBufferSizeKey, options.getInputBufferSize.toString)
-    sc.setLocalProperty(outputBufferSizeKey, options.getOutputXBufferSize.toString)
-    sc.setLocalProperty(useBigIteratorKey, options.useBigIterator().toString)
+    sc.setLocalProperty(TeraConf.f22BufSizeKey, options.getF22BufferSize.toString)
+    sc.setLocalProperty(TeraConf.kryoBufSizeKey, options.getKryoBufferSize.toString)
+    sc.setLocalProperty(TeraConf.verboseKey, options.getVerbose.toString)
+    sc.setLocalProperty(TeraConf.inputBufferSizeKey, options.getInputBufferSize.toString)
+    sc.setLocalProperty(TeraConf.outputBufferSizeKey, options.getOutputXBufferSize.toString)
+    sc.setLocalProperty(TeraConf.useBigIteratorKey, options.useBigIterator().toString)
 
     if(options.getWarmUpKeys > 0) {
       doWarmup(sc, options)
@@ -109,7 +93,7 @@ object TeraSort {
         sc.hadoopConfiguration.set(FileInputFormat.SPLIT_MAXSIZE, splitsize.toString)
       }
       /* see if we want to sync the output file */
-      sc.hadoopConfiguration.setBoolean(TeraOutputFormat.FINAL_SYNC_ATTRIBUTE,
+      sc.hadoopConfiguration.setBoolean(TeraConf.OUTPUT_SYNC_ATTRIBUTE,
         options.getSyncOutput)
 
       val beg = java.lang.System.currentTimeMillis()
@@ -226,9 +210,9 @@ object TeraSort {
     val inx = scin.parallelize(0 until totalWorkers, totalWorkers).flatMap { p =>
       val arr1 = new Array[(Array[Byte], Array[Byte])](perWorker)
       for (i <- 0 until perWorker) {
-        val key = new Array[Byte](TeraInputFormat.KEY_LEN)
+        val key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
         key(0) = ( i % 256).asInstanceOf[Byte]
-        val value = new Array[Byte](TeraInputFormat.VALUE_LEN)
+        val value = new Array[Byte](TeraConf.INPUT_VALUE_LEN)
         arr1(i) = (key, value)
       }
       arr1

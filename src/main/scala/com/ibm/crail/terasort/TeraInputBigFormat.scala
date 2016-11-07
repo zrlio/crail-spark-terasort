@@ -7,8 +7,8 @@ import java.io.EOFException
 import java.util.List
 
 import org.apache.hadoop.fs.{FSDataInputStream, FileStatus, FileSystem, Path}
-import org.apache.hadoop.mapreduce.{InputSplit, JobContext, RecordReader, TaskAttemptContext}
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, FileSplit}
+import org.apache.hadoop.mapreduce.{InputSplit, JobContext, RecordReader, TaskAttemptContext}
 import org.apache.spark.TaskContext
 
 import scala.collection.JavaConversions._
@@ -38,10 +38,10 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
     private var inputSerBuffer: SerializerBuffer = null
     private var totalIncomingBytes:Long = 0
     private var processedSoFar:Long= 0
-    private val inputBufferSize = TaskContext.get().getLocalProperty(TeraSort.inputBufferSizeKey).toInt
+    private val inputBufferSize = TaskContext.get().getLocalProperty(TeraConf.inputBufferSizeKey).toInt
     private var inputBufferIndex = 0
     private var readFromHdfs = 0
-    private val verbose = TaskContext.get().getLocalProperty(TeraSort.verboseKey).toBoolean
+    private val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
 
 
     private def refillInputBuffer(): Unit = {
@@ -51,7 +51,7 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       val target = Math.min(totalIncomingBytes - processedSoFar, inputBufferSize).toInt
 
       if(verbose) {
-        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
           " attempting to refill the buffer with " + target + " bytes")
       }
       while (read < target) {
@@ -67,7 +67,7 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       /* reset used */
       if(verbose) {
         val timeUs = (System.nanoTime() - start) / 1000
-        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
           " HDFS read bytes: " + target +
           " time : " + timeUs + " usec , or " +
           (target.asInstanceOf[Long] * 8) / timeUs + " Mbps ")
@@ -85,17 +85,17 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
         refillInputBuffer()
       }
       /* now we have to copy out things */
-      System.arraycopy(inputBuffer, inputBufferIndex, key, 0, TeraInputFormat.KEY_LEN)
-      inputBufferIndex += TeraInputFormat.KEY_LEN
-      System.arraycopy(inputBuffer, inputBufferIndex, value,  0, TeraInputFormat.VALUE_LEN)
-      inputBufferIndex += TeraInputFormat.VALUE_LEN
+      System.arraycopy(inputBuffer, inputBufferIndex, key, 0, TeraConf.INPUT_KEY_LEN)
+      inputBufferIndex += TeraConf.INPUT_KEY_LEN
+      System.arraycopy(inputBuffer, inputBufferIndex, value,  0, TeraConf.INPUT_VALUE_LEN)
+      inputBufferIndex += TeraConf.INPUT_VALUE_LEN
       /* and also add to the global counter as the full record processed */
-      processedSoFar+=TeraInputFormat.RECORD_LEN
+      processedSoFar+=TeraConf.INPUT_RECORD_LEN
       true
     }
 
     override final def initialize(split : InputSplit, context : TaskAttemptContext) = {
-      val reclen = TeraInputFormat.RECORD_LEN
+      val reclen = TeraConf.INPUT_RECORD_LEN
       val fileSplit = split.asInstanceOf[FileSplit]
       val p : Path = fileSplit.getPath
       val fs : FileSystem = p.getFileSystem(context.getConfiguration)
@@ -107,23 +107,23 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       in.seek(start)
       //check how much is available in the file, with a full multiple this should be good
       length = Math.min(fileSplit.getLength, in.available()) - offset
-      val rem = (start + length)%TeraInputFormat.RECORD_LEN
-      val endOffset = if(rem == 0) start + length else (start + length + (TeraInputFormat.RECORD_LEN - rem))
+      val rem = (start + length)%TeraConf.INPUT_RECORD_LEN
+      val endOffset = if(rem == 0) start + length else (start + length + (TeraConf.INPUT_RECORD_LEN - rem))
       totalIncomingBytes = (endOffset - start)
 
-      require((totalIncomingBytes % TeraInputFormat.RECORD_LEN) == 0 ,
-        " incomingBytes did not alight : " + totalIncomingBytes + " mod : " + (totalIncomingBytes % TeraInputFormat.RECORD_LEN))
+      require((totalIncomingBytes % TeraConf.INPUT_RECORD_LEN) == 0 ,
+        " incomingBytes did not alight : " + totalIncomingBytes + " mod : " + (totalIncomingBytes % TeraConf.INPUT_RECORD_LEN))
 
       if (key == null) {
-        key = new Array[Byte](TeraInputFormat.KEY_LEN)
+        key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
       }
       if (value == null) {
-        value = new Array[Byte](TeraInputFormat.VALUE_LEN)
+        value = new Array[Byte](TeraConf.INPUT_VALUE_LEN)
       }
       inputSerBuffer = BufferCache.getInstance().getByteArrayBuffer(inputBufferSize)
       inputBuffer = inputSerBuffer.getByteArray
       if(verbose){
-        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
           " starting, will process " + totalIncomingBytes + " bytes wih buffer size: " + inputBufferSize)
       }
       refillInputBuffer()
@@ -134,7 +134,7 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       BufferCache.getInstance().putBuffer(inputSerBuffer)
       in.close()
       if(verbose){
-        System.err.println(TeraSort.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
+        System.err.println(TeraConf.verbosePrefixHDFSInput + " TID: " + TaskContext.get.taskAttemptId() +
           " finished, processed " + processedSoFar + " bytes, with " +readFromHdfs + " times to HDFS, "
           + BufferCache.getInstance.getCacheStatus)
       }
