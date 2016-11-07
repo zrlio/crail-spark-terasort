@@ -36,9 +36,9 @@ import scala.collection.mutable.ListBuffer
 private case class OrderedByteBuffer(buf: ByteBuffer) extends Ordered[OrderedByteBuffer] {
   override def compare(that: OrderedByteBuffer): Int = {
     /* read int from the current position */
-    val thisInt = buf.getInt
+    val thisInt = this.buf.getInt
     /* revert */
-    buf.position(buf.position() - Integer.BYTES)
+    buf.position(this.buf.position() - Integer.BYTES)
     /* read int from the current position */
     val thatInt = that.buf.getInt
     /* revert */
