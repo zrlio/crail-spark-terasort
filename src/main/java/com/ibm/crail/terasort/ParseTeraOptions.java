@@ -350,7 +350,7 @@ public class ParseTeraOptions {
                 inputBufferSize = sizeStrToBytesInt((cmd.getOptionValue("I")));
             }
             if (cmd.hasOption("O")) {
-                outputBufferSize = sizeStrToBytesInt((cmd.getOptionValue("X")));
+                outputBufferSize = sizeStrToBytesInt((cmd.getOptionValue("O")));
             }
             if (cmd.hasOption("X")) {
                 useBigIterator = true;

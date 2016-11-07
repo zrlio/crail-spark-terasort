@@ -32,7 +32,6 @@ import org.apache.spark.TaskContext
 
 class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
   var committer : OutputCommitter = null
-  val explictBufferSize = TaskContext.get().getLocalProperty(TeraConf.outputBufferSizeKey).toInt
 
   /**
     * Set the requirement for a final sync before the stream is closed.
@@ -149,7 +148,7 @@ class TeraOutputFormat extends FileOutputFormat[Array[Byte], Array[Byte]] {
     fs.setVerifyChecksum(false)
     fs.setWriteChecksum(false)
     val fileOut : FSDataOutputStream = fs.create(file)
-
+    val explictBufferSize = TaskContext.get().getLocalProperty(TeraConf.outputBufferSizeKey).toInt
     new TeraRecordWriter(fileOut, job, explictBufferSize)
   }
 
