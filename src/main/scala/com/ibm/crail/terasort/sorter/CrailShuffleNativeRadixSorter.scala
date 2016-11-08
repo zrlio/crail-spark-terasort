@@ -115,7 +115,7 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
     val verbose = TaskContext.get().getLocalProperty(TeraConf.verboseKey).toBoolean
     /* we collect data in a list of OrderedByteBuffer */
     val bufferList = ListBuffer[OrderedByteBuffer]()
-    var totalBytesRead = 0
+    var totalBytesRead: Long = 0
     val expectedRead = TaskContext.get().getLocalProperty(TeraConf.f22BufSizeKey).toInt
     val useBigIterator = TaskContext.get().getLocalProperty(TeraConf.useBigIteratorKey).toBoolean
     var bytesRead = expectedRead // to start the loop
@@ -154,7 +154,7 @@ class CrailShuffleNativeRadixSorter extends CrailShuffleSorter {
   }
 }
 
-private class ByteBufferIterator(bufferList: ListBuffer[OrderedByteBuffer], totalBytesRead: Int, verbose: Boolean)
+private class ByteBufferIterator(bufferList: ListBuffer[OrderedByteBuffer], totalBytesRead: Long, verbose: Boolean)
   extends Iterator[Product2[Array[Byte], Array[Byte]]] {
 
   private val key = new Array[Byte](TeraConf.INPUT_KEY_LEN)
@@ -211,7 +211,7 @@ private class ByteBufferIterator(bufferList: ListBuffer[OrderedByteBuffer], tota
   }
 }
 
-private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], totalBytesRead: Int, verbose: Boolean)
+private class ByteBufferBigIterator(bufferList: ListBuffer[OrderedByteBuffer], totalBytesRead: Long, verbose: Boolean)
   extends Iterator[Product2[Array[Byte], Array[Byte]]] {
 
   require(bufferList.length == 1, " Jonas: BigIterator only works with single buffer, currently " +
