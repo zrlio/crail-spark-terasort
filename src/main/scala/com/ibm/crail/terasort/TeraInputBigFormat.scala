@@ -122,13 +122,14 @@ class TeraInputBigFormat extends FileInputFormat[Array[Byte], Array[Byte]] {
       val p : Path = fileSplit.getPath
       val fs : FileSystem = p.getFileSystem(context.getConfiguration)
       fs.setVerifyChecksum(false)
+      //val fileSize = fs.getFileStatus(p).getLen
       in = fs.open(p)
       // find the offset to start at a record boundary
       offset = (reclen - (fileSplit.getStart % reclen)) % reclen
       val start = offset + fileSplit.getStart
       in.seek(start)
       //check how much is available in the file, with a full multiple this should be good
-      length = Math.min(fileSplit.getLength, in.available()) - offset
+      length = fileSplit.getLength - offset
       val rem = (start + length)%TeraConf.INPUT_RECORD_LEN
       val endOffset = if(rem == 0) start + length else (start + length + (TeraConf.INPUT_RECORD_LEN - rem))
       totalIncomingBytes = (endOffset - start)
