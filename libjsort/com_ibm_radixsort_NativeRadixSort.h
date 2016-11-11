@@ -37,6 +37,9 @@ extern "C" {
 JNIEXPORT void JNICALL Java_com_ibm_radixsort_NativeRadixSort_sort
   (JNIEnv *, jclass, jlong, jint, jlong, jlong);
 
+JNIEXPORT void JNICALL Java_com_ibm_radixsort_NativeRadixSort_classify
+  (JNIEnv *env, jclass obj, jlong address, jint num, jlong key_length, jlong gap);
+
 #ifdef __cplusplus
 }
 #endif
